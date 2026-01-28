@@ -1,0 +1,21 @@
+# Virtual environment
+connect/
+venv/
+.venv/
+
+# Garmin auth tokens (sensitive!)
+.garth/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / Editor
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

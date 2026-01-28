@@ -1,0 +1,20 @@
+{
+  "workoutName": "Sunday Long Run - 12km",
+  "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+  "workoutSegments": [{
+    "segmentOrder": 1,
+    "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
+    "workoutSteps": [
+      {
+        "type": "ExecutableStepDTO",
+        "stepOrder": 1,
+        "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
+        "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
+        "endConditionValue": 12000,
+        "targetType": {"workoutTargetTypeId": 6, "workoutTargetTypeKey": "pace.zone"},
+        "targetValueOne": 2.222,
+        "targetValueTwo": 2.564
+      }
+    ]
+  }]
+}

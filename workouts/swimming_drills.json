@@ -1,0 +1,51 @@
+{
+  "workoutName": "Drill + Intervals",
+  "sportType": {"sportTypeId": 5, "sportTypeKey": "lap_swimming"},
+  "poolLength": 25,
+  "poolLengthUnit": {"unitKey": "meter"},
+  "workoutSegments": [{
+    "segmentOrder": 1,
+    "sportType": {"sportTypeId": 5, "sportTypeKey": "lap_swimming"},
+    "workoutSteps": [
+      {
+        "type": "ExecutableStepDTO",
+        "stepOrder": 1,
+        "stepType": {"stepTypeId": 1, "stepTypeKey": "warmup"},
+        "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
+        "endConditionValue": 200,
+        "strokeType": {"strokeTypeId": 4, "strokeTypeKey": "free"}
+      },
+      {
+        "type": "RepeatGroupDTO",
+        "stepOrder": 2,
+        "stepType": {"stepTypeId": 6, "stepTypeKey": "repeat"},
+        "numberOfIterations": 4,
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 1,
+            "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
+            "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
+            "endConditionValue": 100,
+            "strokeType": {"strokeTypeId": 4, "strokeTypeKey": "free"}
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 2,
+            "stepType": {"stepTypeId": 5, "stepTypeKey": "rest"},
+            "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
+            "endConditionValue": 30
+          }
+        ]
+      },
+      {
+        "type": "ExecutableStepDTO",
+        "stepOrder": 3,
+        "stepType": {"stepTypeId": 2, "stepTypeKey": "cooldown"},
+        "endCondition": {"conditionTypeId": 3, "conditionTypeKey": "distance"},
+        "endConditionValue": 100,
+        "strokeType": {"strokeTypeId": 4, "strokeTypeKey": "free"}
+      }
+    ]
+  }]
+}
