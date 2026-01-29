@@ -11,6 +11,12 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Package build artifacts
+dist/
+build/
+*.egg-info/
+src/*.egg-info/
+
 # IDE / Editor
 .vscode/
 .idea/

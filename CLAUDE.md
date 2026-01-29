@@ -1,59 +1,115 @@
-# Garmin Workout Uploader
+# Garmin Workout Buddy
 
-This tool uploads structured workouts to Garmin Connect using JSON files.
+Upload and manage structured workouts on Garmin Connect. Available as both a CLI tool and an MCP server.
 
-## Environment Setup
+## Installation
 
-Use the `connect` virtual environment for all commands:
+### From GitHub (recommended for MCP)
 
 ```bash
-# macOS/Linux
-source connect/bin/activate
-connect/bin/python garmin_workout_uploader.py <command>
+# Install with uvx for MCP server
+uvx --from git+https://github.com/USER/garmin-workout-buddy garmin-mcp
 
-# Windows
-.\connect\Scripts\activate
-connect\Scripts\python.exe garmin_workout_uploader.py <command>
+# Or install with pip
+pip install git+https://github.com/USER/garmin-workout-buddy
 ```
 
-**Note:** Commands below use `python` assuming venv is activated. Replace with full path if not.
+### Local Development
 
-## Quick Commands
+```bash
+# Install in editable mode
+pip install -e .
+
+# Or using the virtual environment
+source connect/bin/activate
+pip install -e .
+```
+
+## MCP Server Setup
+
+### Claude Code CLI
+
+```bash
+claude mcp add --transport stdio garmin \
+  -- uvx --from git+https://github.com/USER/garmin-workout-buddy garmin-mcp
+```
+
+### Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/USER/garmin-workout-buddy", "garmin-mcp"],
+      "env": {
+        "GARMIN_TOKEN_DIR": "${HOME}/.garth"
+      }
+    }
+  }
+}
+```
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_workouts` | List saved workouts |
+| `get_workout` | Get workout details |
+| `upload_workout` | Upload workout JSON |
+| `delete_workout` | Delete a workout |
+| `schedule_workout` | Schedule to calendar |
+| `list_activities` | List completed activities |
+| `get_activity` | Get activity details with intervals |
+
+## CLI Commands
 
 ```bash
 # Upload workout(s)
-python garmin_workout_uploader.py upload workouts/my_workout.json
-python garmin_workout_uploader.py upload workouts/*.json  # Multiple files
+garmin-workout upload workouts/my_workout.json
+garmin-workout upload workouts/*.json  # Multiple files
 
 # List existing workouts
-python garmin_workout_uploader.py list
-python garmin_workout_uploader.py list -n 50  # Show 50 workouts
+garmin-workout list
+garmin-workout list -n 50  # Show 50 workouts
 
 # Show workout details (formatted view of steps)
-python garmin_workout_uploader.py show <workout_id>
+garmin-workout show <workout_id>
 
 # Delete a workout
-python garmin_workout_uploader.py delete <workout_id>
+garmin-workout delete <workout_id>
 
 # Schedule to calendar
-python garmin_workout_uploader.py schedule <workout_id> 2025-02-01
+garmin-workout schedule <workout_id> 2025-02-01
 
 # List completed activities
-python garmin_workout_uploader.py activities
-python garmin_workout_uploader.py activities -n 30           # Show 30 activities
-python garmin_workout_uploader.py activities -t running      # Filter by type
-python garmin_workout_uploader.py activities -t lap_swimming # Swimming activities
+garmin-workout activities
+garmin-workout activities -n 30           # Show 30 activities
+garmin-workout activities -t running      # Filter by type
+garmin-workout activities -t lap_swimming # Swimming activities
 
 # Show activity details (duration, pace, HR, training effect, intervals, etc.)
-python garmin_workout_uploader.py activity <activity_id>
-python garmin_workout_uploader.py activity <activity_id> --json  # Raw JSON output
+garmin-workout activity <activity_id>
+garmin-workout activity <activity_id> --json  # Raw JSON output
 ```
+
+## Authentication
+
+Authentication is attempted in this order:
+
+1. **Saved tokens**: Check `GARMIN_TOKEN_DIR` env var or `~/.garth/`
+2. **Environment variables**: `GARMIN_EMAIL` and `GARMIN_PASSWORD`
+3. **Interactive prompt** (CLI only): Prompts for credentials
+
+For MCP server usage, ensure tokens are saved or set environment variables.
 
 ## Workflow for Creating Weekly Workouts
 
 When the user asks for running/swimming workouts for the week:
 1. Create JSON files in `workouts/` directory with descriptive names
-2. Upload them using the CLI tool
+2. Upload them using the CLI tool or MCP server
 3. Optionally schedule them to specific dates
 
 **Important:** Skip warmup and cooldown steps unless the user explicitly requests them.
@@ -254,17 +310,9 @@ For pace zones, `targetValueOne` is the slower pace (lower m/s) and `targetValue
 - Repeat steps contain nested workoutSteps array
 - stepOrder must be sequential within each level
 
-## Authentication
-
-The script uses OAuth via the `garminconnect` library:
-- Tokens are stored in `.garth/` directory
-- First run prompts for email/password
-- MFA is supported (will prompt for code if enabled)
-- Subsequent runs reuse saved tokens automatically
-
 ## Activity Metrics Displayed
 
-The `activity` command shows comprehensive metrics:
+The `get_activity` tool / `activity` command shows comprehensive metrics:
 
 | Category | Metrics |
 |----------|---------|
@@ -275,13 +323,10 @@ The `activity` command shows comprehensive metrics:
 | Swimming | Pool length, lengths, strokes/length, SWOLF, **intervals with rest periods** |
 | Elevation | Gain, loss, min/max elevation |
 | Training Effect | Aerobic TE, anaerobic TE, training load |
-| Workout Feedback | Compliance score, perceived effort, feel |
-| Conditions | Temperature |
-| Intensity | Vigorous/moderate intensity minutes |
 
 ## Swimming Activity Intervals
 
-For swimming activities, the `activity` command fetches detailed interval/lap data using `client.get_activity_splits()` and displays:
+For swimming activities, detailed interval/lap data is fetched and displayed:
 
 **Per swim interval:**
 - Distance and number of lengths
@@ -295,31 +340,9 @@ For swimming activities, the `activity` command fetches detailed interval/lap da
 - Duration
 - Average HR during recovery
 
-**Example output:**
-```
-Intervals (6 swim, 6 rest)
-----------------------------------------
-  1. 100m (4 lengths) - 2min @ 2:00/100m [freestyle]
-     12.3 str/len, SWOLF 42, HR 127/139
-     ~ Rest: 1min 28s (HR 109)
-  2. 400m (16 lengths) - 8min 25s @ 2:06/100m [freestyle]
-     12.2 str/len, SWOLF 44, HR 134/153
-     ~ Rest: 1min 51s (HR 122)
-```
-
-**API data structure** (from `get_activity_splits`):
-- `lapDTOs[]` - array of laps/intervals
-  - `distance` - meters (0 for rest intervals)
-  - `duration` - seconds
-  - `averageStrokes` - strokes per length
-  - `averageSWOLF` - SWOLF score
-  - `averageHR`, `maxHR` - heart rate
-  - `numberOfActiveLengths` - pool lengths in this interval
-  - `lengthDTOs[]` - individual pool lengths with `swimStroke` type
-
 ## Activity Types for Filtering
 
-Common values for `activities -t <type>`:
+Common values for `list_activities(activity_type=...)` or `activities -t <type>`:
 - `running`
 - `lap_swimming`
 - `cycling`
@@ -327,23 +350,20 @@ Common values for `activities -t <type>`:
 - `hiking`
 - `strength_training`
 
-## Garmin Connect API Methods
+## Package Structure
 
-The `garminconnect` library provides these useful activity methods:
-
-| Method | Description |
-|--------|-------------|
-| `get_activity(id)` | Basic activity data (summary, metadata) |
-| `get_activity_splits(id)` | Lap/interval data with `lapDTOs` array |
-| `get_activity_details(id)` | Detailed metrics and charts |
-| `get_activity_hr_in_timezones(id)` | Heart rate zone distribution |
-| `get_activity_weather(id)` | Weather conditions during activity |
-| `get_activity_gear(id)` | Equipment used |
-| `get_activities(start, limit)` | List activities with pagination |
-
-**Workout methods:**
-| Method | Description |
-|--------|-------------|
-| `get_workouts(start, limit)` | List saved workouts |
-| Custom API call to `workout-service/workout` | Create/update workouts |
-| Custom API call to `workout-service/schedule` | Schedule workout to calendar |
+```
+garmin-workout-buddy/
+├── src/
+│   └── garmin_workout_buddy/
+│       ├── __init__.py      # Package version
+│       ├── __main__.py      # python -m entry
+│       ├── auth.py          # OAuth handling
+│       ├── service.py       # Core business logic
+│       ├── server.py        # FastMCP server
+│       ├── cli.py           # CLI interface
+│       └── formatters.py    # Display formatting
+├── pyproject.toml           # Package config
+├── CLAUDE.md                # This file
+└── workouts/                # Example templates
+```
