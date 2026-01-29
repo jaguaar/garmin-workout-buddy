@@ -33,8 +33,8 @@ garmin-workout = "garmin_workout_buddy.cli:main"
 garmin-mcp = "garmin_workout_buddy.server:main"
 
 [project.urls]
-Homepage = "https://github.com/jordivp/garmin-workout-buddy"
-Repository = "https://github.com/jordivp/garmin-workout-buddy"
+Homepage = "https://github.com/jaguaar/garmin-workout-buddy"
+Repository = "https://github.com/jaguaar/garmin-workout-buddy"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/garmin_workout_buddy"]

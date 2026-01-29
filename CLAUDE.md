@@ -8,10 +8,10 @@ Upload and manage structured workouts on Garmin Connect. Available as both a CLI
 
 ```bash
 # Install with uvx for MCP server
-uvx --from git+https://github.com/USER/garmin-workout-buddy garmin-mcp
+uvx --from git+https://github.com/jaguaar/garmin-workout-buddy garmin-mcp
 
 # Or install with pip
-pip install git+https://github.com/USER/garmin-workout-buddy
+pip install git+https://github.com/jaguaar/garmin-workout-buddy
 ```
 
 ### Local Development
@@ -31,7 +31,7 @@ pip install -e .
 
 ```bash
 claude mcp add --transport stdio garmin \
-  -- uvx --from git+https://github.com/USER/garmin-workout-buddy garmin-mcp
+  -- uvx --from git+https://github.com/jaguaar/garmin-workout-buddy garmin-mcp
 ```
 
 ### Claude Desktop
@@ -43,7 +43,7 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "garmin": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/USER/garmin-workout-buddy", "garmin-mcp"],
+      "args": ["--from", "git+https://github.com/jaguaar/garmin-workout-buddy", "garmin-mcp"],
       "env": {
         "GARMIN_TOKEN_DIR": "${HOME}/.garth"
       }
