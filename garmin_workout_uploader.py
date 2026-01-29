@@ -28,24 +28,33 @@ def get_client() -> Garmin:
     TOKEN_DIR.mkdir(exist_ok=True)
     token_path = str(TOKEN_DIR)
 
-    client = Garmin()
+    # Check if token files exist before trying to load them
+    oauth1_token_file = TOKEN_DIR / "oauth1_token.json"
+    if oauth1_token_file.exists():
+        try:
+            client = Garmin()
+            client.login(token_path)
+            print("Authenticated using saved session.")
+            return client
+        except Exception:
+            pass  # Fall through to credential login
+
+    # No valid session - need fresh login
+    print("No valid session found. Please enter your Garmin Connect credentials.")
+    email = input("Email: ")
+    password = input("Password: ")
+
+    def prompt_mfa():
+        return input("MFA code: ")
 
     try:
-        client.login(token_path)
-        print("Authenticated using saved session.")
-    except Exception:
-        print("No valid session found. Please enter your Garmin Connect credentials.")
-        email = input("Email: ")
-        password = input("Password: ")
-
-        try:
-            client = Garmin(email, password)
-            client.login()
-            client.garth.dump(token_path)
-            print("Login successful. Session saved.")
-        except Exception as e:
-            print(f"Authentication failed: {e}")
-            sys.exit(1)
+        client = Garmin(email, password, prompt_mfa=prompt_mfa)
+        client.login()
+        client.garth.dump(token_path)
+        print("Login successful. Session saved.")
+    except Exception as e:
+        print(f"Authentication failed: {e}")
+        sys.exit(1)
 
     return client
 
@@ -318,28 +327,44 @@ def list_activities(client: Garmin, limit: int = 20, activity_type: str = None) 
 
     Args:
         client: Authenticated Garmin client
-        limit: Maximum number of activities to retrieve
+        limit: Maximum number of activities to return (of the specified type if filtered)
         activity_type: Filter by activity type (running, swimming, etc.)
 
     Returns:
         List of activity summaries
     """
-    activities = client.get_activities(0, limit)
+    if not activity_type:
+        # No filter - just fetch the requested number
+        activities = client.get_activities(0, limit)
+        if not activities:
+            print("No activities found.")
+            return []
+    else:
+        # Fetch in batches until we have enough of the specified type
+        activities = []
+        batch_size = 50
+        offset = 0
+        max_fetches = 20  # Safety limit to avoid infinite loops
 
-    if not activities:
-        print("No activities found.")
-        return []
+        for _ in range(max_fetches):
+            batch = client.get_activities(offset, batch_size)
+            if not batch:
+                break
 
-    # Filter by activity type if specified
-    if activity_type:
-        activities = [
-            a for a in activities
-            if a.get("activityType", {}).get("typeKey", "").lower() == activity_type.lower()
-        ]
+            for a in batch:
+                if a.get("activityType", {}).get("typeKey", "").lower() == activity_type.lower():
+                    activities.append(a)
+                    if len(activities) >= limit:
+                        break
 
-    if not activities:
-        print(f"No {activity_type} activities found.")
-        return []
+            if len(activities) >= limit:
+                break
+
+            offset += batch_size
+
+        if not activities:
+            print(f"No {activity_type} activities found.")
+            return []
 
     print(f"Found {len(activities)} activity(ies):\n")
     for activity in activities:
@@ -383,6 +408,23 @@ def get_activity(client: Garmin, activity_id: int) -> dict:
     except Exception as e:
         print(f"Error fetching activity: {e}")
         sys.exit(1)
+
+
+def get_activity_splits(client: Garmin, activity_id: int) -> dict:
+    """
+    Fetch an activity's splits/laps data from Garmin Connect.
+
+    Args:
+        client: Authenticated Garmin client
+        activity_id: The ID of the activity to fetch
+
+    Returns:
+        The splits data dictionary with lapDTOs
+    """
+    try:
+        return client.get_activity_splits(activity_id)
+    except Exception as e:
+        return None
 
 
 def format_activity_pace(duration_secs: float, distance_m: float) -> str:
@@ -567,8 +609,8 @@ def show_activity(client: Garmin, activity_id: int) -> None:
     # --- Swimming Metrics ---
     if is_swimming:
         pool_length = summary.get("poolLength")
-        avg_strokes = summary.get("avgStrokes")
-        avg_swolf = summary.get("avgSwolf")
+        avg_strokes = summary.get("averageStrokes")  # API uses 'averageStrokes'
+        avg_swolf = summary.get("averageSWOLF")  # API uses 'averageSWOLF'
         num_lengths = summary.get("numberOfActiveLengths")
 
         if any([pool_length, avg_strokes, avg_swolf]):
@@ -583,6 +625,76 @@ def show_activity(client: Garmin, activity_id: int) -> None:
                 print(f"Avg Strokes/Length: {avg_strokes:.1f}")
             if avg_swolf:
                 print(f"Avg SWOLF: {int(avg_swolf)}")
+
+        # Fetch and display intervals
+        splits = get_activity_splits(client, activity_id)
+        if splits and splits.get("lapDTOs"):
+            laps = splits["lapDTOs"]
+            # Count swim vs rest intervals
+            swim_intervals = [lap for lap in laps if lap.get("distance", 0) > 0]
+            rest_intervals = [lap for lap in laps if lap.get("distance", 0) == 0]
+
+            if swim_intervals:
+                print()
+                print(f"Intervals ({len(swim_intervals)} swim, {len(rest_intervals)} rest)")
+                print("-" * 40)
+
+                swim_num = 0
+                for lap in laps:
+                    dist = lap.get("distance", 0)
+                    dur = lap.get("duration", 0)
+
+                    if dist > 0:
+                        # Swim interval
+                        swim_num += 1
+                        pace = format_swim_pace(dur, dist) if dist and dur else "N/A"
+                        strokes = lap.get("averageStrokes")
+                        swolf = lap.get("averageSWOLF")
+                        avg_hr = lap.get("averageHR")
+                        max_hr = lap.get("maxHR")
+                        num_lengths = lap.get("numberOfActiveLengths", 0)
+
+                        # Detect stroke type from lengthDTOs if available
+                        stroke = "mixed"
+                        length_dtos = lap.get("lengthDTOs", [])
+                        if length_dtos:
+                            strokes_set = set(
+                                l.get("swimStroke", "").lower()
+                                for l in length_dtos
+                                if l.get("swimStroke")
+                            )
+                            if len(strokes_set) == 1:
+                                stroke = strokes_set.pop()
+
+                        # Build interval line
+                        line = f"  {swim_num}. {format_distance(dist)} ({num_lengths} lengths)"
+                        line += f" - {format_duration(dur)} @ {pace}"
+                        if stroke and stroke != "mixed":
+                            line += f" [{stroke}]"
+
+                        # Metrics line
+                        metrics = []
+                        if strokes:
+                            metrics.append(f"{strokes:.1f} str/len")
+                        if swolf:
+                            metrics.append(f"SWOLF {int(swolf)}")
+                        if avg_hr:
+                            hr_str = f"HR {int(avg_hr)}"
+                            if max_hr and max_hr != avg_hr:
+                                hr_str += f"/{int(max_hr)}"
+                            metrics.append(hr_str)
+
+                        print(line)
+                        if metrics:
+                            print(f"     {', '.join(metrics)}")
+
+                    elif dur > 5:
+                        # Rest interval (skip very short ones < 5s)
+                        avg_hr = lap.get("averageHR")
+                        rest_line = f"     ~ Rest: {format_duration(dur)}"
+                        if avg_hr:
+                            rest_line += f" (HR {int(avg_hr)})"
+                        print(rest_line)
 
     # --- Elevation ---
     elev_gain = summary.get("elevationGain")
@@ -771,7 +883,7 @@ Examples:
         "-n", "--limit",
         type=int,
         default=20,
-        help="Maximum number of activities to list (default: 20)",
+        help="Number of activities to list (default: 20). When used with -t, returns this many activities of the specified type.",
     )
     activities_parser.add_argument(
         "-t", "--type",

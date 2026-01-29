@@ -7,27 +7,46 @@ This tool uploads structured workouts to Garmin Connect using JSON files.
 Use the `connect` virtual environment for all commands:
 
 ```bash
-# Activate the venv (Windows)
-.\connect\Scripts\activate
+# macOS/Linux
+source connect/bin/activate
+connect/bin/python garmin_workout_uploader.py <command>
 
-# Or run directly with venv python
-connect/Scripts/python.exe garmin_workout_uploader.py <command>
+# Windows
+.\connect\Scripts\activate
+connect\Scripts\python.exe garmin_workout_uploader.py <command>
 ```
+
+**Note:** Commands below use `python` assuming venv is activated. Replace with full path if not.
 
 ## Quick Commands
 
 ```bash
 # Upload workout(s)
-connect/Scripts/python.exe garmin_workout_uploader.py upload workouts/my_workout.json
+python garmin_workout_uploader.py upload workouts/my_workout.json
+python garmin_workout_uploader.py upload workouts/*.json  # Multiple files
 
 # List existing workouts
 python garmin_workout_uploader.py list
+python garmin_workout_uploader.py list -n 50  # Show 50 workouts
+
+# Show workout details (formatted view of steps)
+python garmin_workout_uploader.py show <workout_id>
 
 # Delete a workout
 python garmin_workout_uploader.py delete <workout_id>
 
 # Schedule to calendar
 python garmin_workout_uploader.py schedule <workout_id> 2025-02-01
+
+# List completed activities
+python garmin_workout_uploader.py activities
+python garmin_workout_uploader.py activities -n 30           # Show 30 activities
+python garmin_workout_uploader.py activities -t running      # Filter by type
+python garmin_workout_uploader.py activities -t lap_swimming # Swimming activities
+
+# Show activity details (duration, pace, HR, training effect, intervals, etc.)
+python garmin_workout_uploader.py activity <activity_id>
+python garmin_workout_uploader.py activity <activity_id> --json  # Raw JSON output
 ```
 
 ## Workflow for Creating Weekly Workouts
@@ -234,3 +253,97 @@ For pace zones, `targetValueOne` is the slower pace (lower m/s) and `targetValue
 - Distance values are always in meters
 - Repeat steps contain nested workoutSteps array
 - stepOrder must be sequential within each level
+
+## Authentication
+
+The script uses OAuth via the `garminconnect` library:
+- Tokens are stored in `.garth/` directory
+- First run prompts for email/password
+- MFA is supported (will prompt for code if enabled)
+- Subsequent runs reuse saved tokens automatically
+
+## Activity Metrics Displayed
+
+The `activity` command shows comprehensive metrics:
+
+| Category | Metrics |
+|----------|---------|
+| Core | Duration (total/moving), distance, pace/speed, calories, steps |
+| Heart Rate | Average, max, min, recovery HR |
+| Running Dynamics | Cadence, stride length, ground contact time, vertical oscillation, vertical ratio |
+| Power | Average, normalized, max power |
+| Swimming | Pool length, lengths, strokes/length, SWOLF, **intervals with rest periods** |
+| Elevation | Gain, loss, min/max elevation |
+| Training Effect | Aerobic TE, anaerobic TE, training load |
+| Workout Feedback | Compliance score, perceived effort, feel |
+| Conditions | Temperature |
+| Intensity | Vigorous/moderate intensity minutes |
+
+## Swimming Activity Intervals
+
+For swimming activities, the `activity` command fetches detailed interval/lap data using `client.get_activity_splits()` and displays:
+
+**Per swim interval:**
+- Distance and number of lengths
+- Duration and pace (per 100m)
+- Stroke type (freestyle, backstroke, etc.)
+- Strokes per length
+- SWOLF score
+- Heart rate (avg/max)
+
+**Rest periods between intervals:**
+- Duration
+- Average HR during recovery
+
+**Example output:**
+```
+Intervals (6 swim, 6 rest)
+----------------------------------------
+  1. 100m (4 lengths) - 2min @ 2:00/100m [freestyle]
+     12.3 str/len, SWOLF 42, HR 127/139
+     ~ Rest: 1min 28s (HR 109)
+  2. 400m (16 lengths) - 8min 25s @ 2:06/100m [freestyle]
+     12.2 str/len, SWOLF 44, HR 134/153
+     ~ Rest: 1min 51s (HR 122)
+```
+
+**API data structure** (from `get_activity_splits`):
+- `lapDTOs[]` - array of laps/intervals
+  - `distance` - meters (0 for rest intervals)
+  - `duration` - seconds
+  - `averageStrokes` - strokes per length
+  - `averageSWOLF` - SWOLF score
+  - `averageHR`, `maxHR` - heart rate
+  - `numberOfActiveLengths` - pool lengths in this interval
+  - `lengthDTOs[]` - individual pool lengths with `swimStroke` type
+
+## Activity Types for Filtering
+
+Common values for `activities -t <type>`:
+- `running`
+- `lap_swimming`
+- `cycling`
+- `walking`
+- `hiking`
+- `strength_training`
+
+## Garmin Connect API Methods
+
+The `garminconnect` library provides these useful activity methods:
+
+| Method | Description |
+|--------|-------------|
+| `get_activity(id)` | Basic activity data (summary, metadata) |
+| `get_activity_splits(id)` | Lap/interval data with `lapDTOs` array |
+| `get_activity_details(id)` | Detailed metrics and charts |
+| `get_activity_hr_in_timezones(id)` | Heart rate zone distribution |
+| `get_activity_weather(id)` | Weather conditions during activity |
+| `get_activity_gear(id)` | Equipment used |
+| `get_activities(start, limit)` | List activities with pagination |
+
+**Workout methods:**
+| Method | Description |
+|--------|-------------|
+| `get_workouts(start, limit)` | List saved workouts |
+| Custom API call to `workout-service/workout` | Create/update workouts |
+| Custom API call to `workout-service/schedule` | Schedule workout to calendar |
