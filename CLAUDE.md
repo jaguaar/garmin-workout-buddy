@@ -1,16 +1,12 @@
 # Garmin Workout Buddy
 
-Upload and manage structured workouts on Garmin Connect. Available as both a CLI tool and an MCP server.
+Upload and manage structured workouts on Garmin Connect via CLI.
 
 ## Installation
 
-### From GitHub (recommended for MCP)
+### From GitHub
 
 ```bash
-# Install with uvx for MCP server
-uvx --from git+https://github.com/jaguaar/garmin-workout-buddy garmin-mcp
-
-# Or install with pip
 pip install git+https://github.com/jaguaar/garmin-workout-buddy
 ```
 
@@ -24,45 +20,6 @@ pip install -e .
 source connect/bin/activate
 pip install -e .
 ```
-
-## MCP Server Setup
-
-### Claude Code CLI
-
-```bash
-claude mcp add --transport stdio garmin \
-  -- uvx --from git+https://github.com/jaguaar/garmin-workout-buddy garmin-mcp
-```
-
-### Claude Desktop
-
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "garmin": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/jaguaar/garmin-workout-buddy", "garmin-mcp"],
-      "env": {
-        "GARMIN_TOKEN_DIR": "${HOME}/.garth"
-      }
-    }
-  }
-}
-```
-
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `list_workouts` | List saved workouts |
-| `get_workout` | Get workout details |
-| `upload_workout` | Upload workout JSON |
-| `delete_workout` | Delete a workout |
-| `schedule_workout` | Schedule to calendar |
-| `list_activities` | List completed activities |
-| `get_activity` | Get activity details with intervals |
 
 ## CLI Commands
 
@@ -101,15 +58,13 @@ Authentication is attempted in this order:
 
 1. **Saved tokens**: Check `GARMIN_TOKEN_DIR` env var or `~/.garth/`
 2. **Environment variables**: `GARMIN_EMAIL` and `GARMIN_PASSWORD`
-3. **Interactive prompt** (CLI only): Prompts for credentials
-
-For MCP server usage, ensure tokens are saved or set environment variables.
+3. **Interactive prompt**: Prompts for credentials
 
 ## Workflow for Creating Weekly Workouts
 
 When the user asks for running/swimming workouts for the week:
 1. Create JSON files in `workouts/` directory with descriptive names
-2. Upload them using the CLI tool or MCP server
+2. Upload them using the CLI tool
 3. Optionally schedule them to specific dates
 
 **Important:** Skip warmup and cooldown steps unless the user explicitly requests them.
@@ -312,7 +267,7 @@ For pace zones, `targetValueOne` is the slower pace (lower m/s) and `targetValue
 
 ## Activity Metrics Displayed
 
-The `get_activity` tool / `activity` command shows comprehensive metrics:
+The `activity` command shows comprehensive metrics:
 
 | Category | Metrics |
 |----------|---------|
@@ -342,7 +297,7 @@ For swimming activities, detailed interval/lap data is fetched and displayed:
 
 ## Activity Types for Filtering
 
-Common values for `list_activities(activity_type=...)` or `activities -t <type>`:
+Common values for `activities -t <type>`:
 - `running`
 - `lap_swimming`
 - `cycling`
@@ -360,7 +315,6 @@ garmin-workout-buddy/
 │       ├── __main__.py      # python -m entry
 │       ├── auth.py          # OAuth handling
 │       ├── service.py       # Core business logic
-│       ├── server.py        # FastMCP server
 │       ├── cli.py           # CLI interface
 │       └── formatters.py    # Display formatting
 ├── pyproject.toml           # Package config
