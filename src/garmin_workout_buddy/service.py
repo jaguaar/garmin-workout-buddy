@@ -5,6 +5,7 @@ All functions return data structures or raise exceptions on failure.
 """
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
@@ -242,6 +243,143 @@ class GarminService:
             raise WorkoutNotFoundError(f"Workout not found: {workout_id}")
         else:
             raise GarminServiceError(f"Error scheduling workout: {response.status_code} - {response.text}")
+
+    # --- Daily Status Operations ---
+
+    def get_daily_status(self, date_str: Optional[str] = None) -> dict[str, Any]:
+        """
+        Get training readiness and fatigue status for a given date.
+
+        Fetches multiple recovery metrics, each wrapped in try/except so one
+        failing metric doesn't break the whole command.
+
+        Args:
+            date_str: Date in YYYY-MM-DD format (defaults to today)
+
+        Returns:
+            Dictionary with sections: training_readiness, body_battery, sleep,
+            hrv, stress, resting_hr, training_status
+        """
+        if not date_str:
+            date_str = date.today().isoformat()
+
+        result: dict[str, Any] = {"date": date_str}
+
+        # Training Readiness (API returns a list, first entry is most recent)
+        try:
+            data = self.client.get_training_readiness(date_str)
+            if data:
+                entry = data[0] if isinstance(data, list) else data
+                result["training_readiness"] = {
+                    "score": int(entry["score"]) if entry.get("score") is not None else None,
+                    "level": (entry.get("level") or "").replace("_", " ").title() or None,
+                }
+            else:
+                result["training_readiness"] = None
+        except Exception:
+            result["training_readiness"] = None
+
+        # Body Battery (API returns a list wrapping a dict with bodyBatteryValuesArray)
+        try:
+            data = self.client.get_body_battery(date_str)
+            current = None
+            if data:
+                day = data[0] if isinstance(data, list) else data
+                entries = day.get("bodyBatteryValuesArray", []) if isinstance(day, dict) else []
+                # Each entry is [timestamp, level]; get the most recent
+                for entry in reversed(entries):
+                    if isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[1] is not None and entry[1] > 0:
+                        current = int(entry[1])
+                        break
+            result["body_battery"] = {"current": current}
+        except Exception:
+            result["body_battery"] = None
+
+        # Sleep
+        try:
+            data = self.client.get_sleep_data(date_str)
+            if data and data.get("dailySleepDTO"):
+                sleep_dto = data["dailySleepDTO"]
+                duration = sleep_dto.get("sleepTimeSeconds")
+                result["sleep"] = {
+                    "duration": duration,
+                    "quality": sleep_dto.get("sleepQualityTypePK", "").replace("_", " ").title() if sleep_dto.get("sleepQualityTypePK") else None,
+                    "deep": sleep_dto.get("deepSleepSeconds"),
+                    "light": sleep_dto.get("lightSleepSeconds"),
+                    "rem": sleep_dto.get("remSleepSeconds"),
+                    "awake": sleep_dto.get("awakeSleepSeconds"),
+                }
+            else:
+                result["sleep"] = None
+        except Exception:
+            result["sleep"] = None
+
+        # HRV
+        try:
+            data = self.client.get_hrv_data(date_str)
+            if data and data.get("hrvSummary"):
+                summary = data["hrvSummary"]
+                result["hrv"] = {
+                    "weekly_avg": int(summary["weeklyAvg"]) if summary.get("weeklyAvg") is not None else None,
+                    "last_night": int(summary["lastNight"]) if summary.get("lastNight") is not None else None,
+                    "status": summary.get("status", "").replace("_", " ").title() if summary.get("status") else None,
+                }
+            else:
+                result["hrv"] = None
+        except Exception:
+            result["hrv"] = None
+
+        # Stress (uses avgStressLevel, not overallStressLevel)
+        try:
+            data = self.client.get_stress_data(date_str)
+            if data:
+                result["stress"] = {
+                    "overall": int(data["avgStressLevel"]) if data.get("avgStressLevel") is not None else None,
+                    "max": int(data["maxStressLevel"]) if data.get("maxStressLevel") is not None else None,
+                }
+            else:
+                result["stress"] = None
+        except Exception:
+            result["stress"] = None
+
+        # Resting HR (key is WELLNESS_RESTING_HEART_RATE)
+        try:
+            data = self.client.get_rhr_day(date_str)
+            rhr_val = None
+            if data and isinstance(data, dict):
+                if data.get("allMetrics"):
+                    for m in data["allMetrics"].get("metricsMap", {}).get("WELLNESS_RESTING_HEART_RATE", []):
+                        if m.get("value"):
+                            rhr_val = int(m["value"])
+                            break
+                if not rhr_val:
+                    rhr_val = data.get("restingHeartRate") or data.get("value")
+            result["resting_hr"] = {"value": int(rhr_val) if rhr_val else None}
+        except Exception:
+            result["resting_hr"] = None
+
+        # Training Status (nested under mostRecentTrainingStatus)
+        try:
+            data = self.client.get_training_status(date_str)
+            status_text = None
+            if data and isinstance(data, dict):
+                ts_data = data.get("mostRecentTrainingStatus")
+                if ts_data:
+                    status_text = ts_data.get("trainingStatusPhrase")
+                if not status_text:
+                    # Also check for trainingLoadBalance feedback
+                    tlb = data.get("mostRecentTrainingLoadBalance", {})
+                    for dev_data in tlb.get("metricsTrainingLoadBalanceDTOMap", {}).values():
+                        status_text = dev_data.get("trainingBalanceFeedbackPhrase")
+                        if status_text:
+                            break
+            result["training_status"] = {
+                "status": status_text.replace("_", " ").title() if status_text else None,
+            }
+        except Exception:
+            result["training_status"] = None
+
+        return result
 
     # --- Activity Operations ---
 

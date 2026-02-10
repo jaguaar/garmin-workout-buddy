@@ -158,3 +158,113 @@ def format_activity_summary(activity: dict) -> dict[str, Any]:
         "duration": format_duration(activity.get("duration", 0)) if activity.get("duration") else None,
         "distance": format_distance(activity.get("distance", 0)) if activity.get("distance") else None,
     }
+
+
+def _readiness_label(score: int) -> str:
+    """Get a label for a training readiness score."""
+    if score >= 80:
+        return "Excellent"
+    elif score >= 60:
+        return "Good"
+    elif score >= 40:
+        return "Fair"
+    elif score >= 20:
+        return "Low"
+    return "Poor"
+
+
+def _stress_label(score: int) -> str:
+    """Get a label for a stress score."""
+    if score <= 25:
+        return "Rest"
+    elif score <= 50:
+        return "Low"
+    elif score <= 75:
+        return "Medium"
+    return "High"
+
+
+def _format_sleep_duration(seconds: float) -> str:
+    """Format sleep duration as Xh Ym."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    if hours > 0:
+        return f"{hours}h {minutes:02d}m"
+    return f"{minutes}m"
+
+
+def format_status_report(status: dict) -> str:
+    """Format the daily status dict into a readable CLI report."""
+    lines = []
+
+    # Training Readiness
+    tr = status.get("training_readiness")
+    if tr and tr.get("score") is not None:
+        score = tr["score"]
+        label = tr.get("level") or _readiness_label(score)
+        lines.append(f"Training Readiness: {score}/100 ({label})")
+    else:
+        lines.append("Training Readiness: N/A")
+
+    # Body Battery
+    bb = status.get("body_battery")
+    if bb and bb.get("current") is not None:
+        lines.append(f"Body Battery:       {bb['current']}/100")
+    else:
+        lines.append("Body Battery:       N/A")
+
+    # Training Status
+    ts = status.get("training_status")
+    if ts and ts.get("status"):
+        lines.append(f"Training Status:    {ts['status']}")
+    else:
+        lines.append("Training Status:    N/A")
+
+    lines.append("")
+
+    # Sleep
+    sl = status.get("sleep")
+    if sl and sl.get("duration") is not None:
+        dur_str = _format_sleep_duration(sl["duration"])
+        quality = f" ({sl['quality']})" if sl.get("quality") else ""
+        lines.append(f"Sleep:              {dur_str}{quality}")
+        stages = []
+        if sl.get("deep") is not None:
+            stages.append(f"Deep: {_format_sleep_duration(sl['deep'])}")
+        if sl.get("light") is not None:
+            stages.append(f"Light: {_format_sleep_duration(sl['light'])}")
+        if sl.get("rem") is not None:
+            stages.append(f"REM: {_format_sleep_duration(sl['rem'])}")
+        if sl.get("awake") is not None:
+            stages.append(f"Awake: {_format_sleep_duration(sl['awake'])}")
+        if stages:
+            lines.append(f"  {' | '.join(stages)}")
+    else:
+        lines.append("Sleep:              N/A")
+
+    lines.append("")
+
+    # HRV
+    hrv = status.get("hrv")
+    if hrv and hrv.get("weekly_avg") is not None:
+        label = f" ({hrv['status']})" if hrv.get("status") else ""
+        lines.append(f"HRV:                {hrv['weekly_avg']}ms{label}")
+    else:
+        lines.append("HRV:                N/A")
+
+    # Resting HR
+    rhr = status.get("resting_hr")
+    if rhr and rhr.get("value") is not None:
+        lines.append(f"Resting HR:         {rhr['value']} bpm")
+    else:
+        lines.append("Resting HR:         N/A")
+
+    # Stress
+    st = status.get("stress")
+    if st and st.get("overall") is not None:
+        label = _stress_label(st["overall"])
+        lines.append(f"Stress:             {st['overall']} ({label})")
+    else:
+        lines.append("Stress:             N/A")
+
+    return "\n".join(lines)

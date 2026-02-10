@@ -1,6 +1,6 @@
 # Garmin Workout Buddy
 
-Upload and manage structured workouts on Garmin Connect via CLI.
+Upload and manage structured workouts on Garmin Connect via CLI and MCP server.
 
 ## Installation
 
@@ -13,13 +13,69 @@ pip install git+https://github.com/jaguaar/garmin-workout-buddy
 ### Local Development
 
 ```bash
-# Install in editable mode
-pip install -e .
+# Using the virtual environment (connect-venv)
+# Windows:
+./connect-venv/Scripts/pip.exe install -e .
+./connect-venv/Scripts/python.exe -m garmin_workout_buddy <command>
 
-# Or using the virtual environment
-source connect/bin/activate
+# Linux/Mac:
+source connect-venv/bin/activate
 pip install -e .
+garmin-workout <command>
 ```
+
+## MCP Server
+
+The package includes a FastMCP server (`garmin-mcp`) that exposes all Garmin Connect operations as MCP tools, usable by Claude Desktop, Claude Code, or any MCP-compatible client.
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_workouts` | List saved workouts |
+| `get_workout` | Get workout details with formatted steps |
+| `upload_workout` | Upload a structured workout (JSON string) |
+| `delete_workout` | Delete a workout |
+| `schedule_workout` | Schedule a workout to a calendar date |
+| `list_activities` | List completed activities (with optional type filter) |
+| `get_activity` | Get detailed activity metrics |
+| `get_status` | Get training readiness & fatigue status for a date |
+
+### Claude Code Setup
+
+Add to `~/.claude/settings.json` (or project `.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "C:\\Users\\jordi\\dev\\garmin-workout-buddy\\connect-venv\\Scripts\\garmin-mcp.exe"
+    }
+  }
+}
+```
+
+### Claude Desktop Setup
+
+Add to Claude Desktop's config (`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "C:\\Users\\jordi\\dev\\garmin-workout-buddy\\connect-venv\\Scripts\\garmin-mcp.exe"
+    }
+  }
+}
+```
+
+### Authentication for MCP
+
+The MCP server uses non-interactive authentication only:
+1. Saved tokens from `GARMIN_TOKEN_DIR` or `~/.garth/`
+2. Environment variables `GARMIN_EMAIL` and `GARMIN_PASSWORD`
+
+Run `garmin-workout list` via CLI first to establish a session token interactively.
 
 ## CLI Commands
 
@@ -46,6 +102,10 @@ garmin-workout activities
 garmin-workout activities -n 30           # Show 30 activities
 garmin-workout activities -t running      # Filter by type
 garmin-workout activities -t lap_swimming # Swimming activities
+
+# Training readiness & fatigue status
+garmin-workout status                         # Today's status
+garmin-workout status --date 2026-02-09       # Specific date
 
 # Show activity details (duration, pace, HR, training effect, intervals, etc.)
 garmin-workout activity <activity_id>
@@ -265,6 +325,20 @@ For pace zones, `targetValueOne` is the slower pace (lower m/s) and `targetValue
 - Repeat steps contain nested workoutSteps array
 - stepOrder must be sequential within each level
 
+## Daily Status Metrics
+
+The `status` command shows a single-glance recovery overview:
+
+| Metric | Description |
+|--------|-------------|
+| Training Readiness | Overall readiness score (0-100) with level label |
+| Body Battery | Current energy level (0-100) |
+| Training Status | Training load status (Productive, Recovery, etc.) |
+| Sleep | Duration, quality, and stage breakdown (deep/light/REM/awake) |
+| HRV | Heart rate variability weekly average and status |
+| Resting HR | Resting heart rate in bpm |
+| Stress | Overall stress level with label (Rest/Low/Medium/High) |
+
 ## Activity Metrics Displayed
 
 The `activity` command shows comprehensive metrics:
@@ -316,6 +390,7 @@ garmin-workout-buddy/
 │       ├── auth.py          # OAuth handling
 │       ├── service.py       # Core business logic
 │       ├── cli.py           # CLI interface
+│       ├── server.py        # FastMCP server
 │       └── formatters.py    # Display formatting
 ├── pyproject.toml           # Package config
 ├── CLAUDE.md                # This file

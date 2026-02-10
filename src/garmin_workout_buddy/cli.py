@@ -11,6 +11,7 @@ from .formatters import (
     format_distance,
     format_duration,
     format_speed_as_pace,
+    format_status_report,
     format_step,
     format_swim_pace,
 )
@@ -122,6 +123,15 @@ def cmd_activities(service: GarminService, args: argparse.Namespace) -> None:
         if activity.get("distance"):
             print(f"  Distance: {activity['distance']}")
         print()
+
+
+def cmd_status(service: GarminService, args: argparse.Namespace) -> None:
+    """Handle the status command."""
+    status = service.get_daily_status(date_str=args.date)
+    print(f"\nDaily Status ({status['date']})")
+    print("=" * 40)
+    print(format_status_report(status))
+    print()
 
 
 def cmd_activity(service: GarminService, args: argparse.Namespace) -> None:
@@ -320,6 +330,8 @@ Examples:
   %(prog)s show 12345                   Show workout details
   %(prog)s delete 12345                 Delete workout by ID
   %(prog)s schedule 12345 2025-02-01    Schedule workout to date
+  %(prog)s status                       Show training readiness & fatigue
+  %(prog)s status --date 2026-02-09    Status for a specific date
   %(prog)s activities                   List recent completed activities
   %(prog)s activities -t running        List recent running activities
   %(prog)s activity 12345               Show activity details
@@ -375,6 +387,14 @@ Examples:
         help="Date in YYYY-MM-DD format",
     )
 
+    # Status command (training readiness & fatigue)
+    status_parser = subparsers.add_parser("status", help="Show training readiness & fatigue status")
+    status_parser.add_argument(
+        "--date",
+        default=None,
+        help="Date in YYYY-MM-DD format (default: today)",
+    )
+
     # Activities command (list completed activities)
     activities_parser = subparsers.add_parser("activities", help="List completed activities")
     activities_parser.add_argument(
@@ -426,6 +446,8 @@ Examples:
         cmd_delete(service, args)
     elif args.command == "schedule":
         cmd_schedule(service, args)
+    elif args.command == "status":
+        cmd_status(service, args)
     elif args.command == "activities":
         cmd_activities(service, args)
     elif args.command == "activity":
