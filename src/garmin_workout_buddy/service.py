@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from garminconnect import Garmin
+from garminconnect.exceptions import GarminConnectConnectionError
 
 from .formatters import (
     format_activity_summary,
@@ -56,14 +57,6 @@ class GarminService:
         """
         self.client = client
 
-    def _get_headers(self) -> dict:
-        """Get authorization headers for API requests."""
-        return {
-            "Authorization": str(self.client.garth.oauth2_token),
-            "Content-Type": "application/json",
-            "NK": "NT",
-        }
-
     # --- Workout Operations ---
 
     def list_workouts(self, limit: int = 20) -> list[dict]:
@@ -95,16 +88,12 @@ class GarminService:
             WorkoutNotFoundError: If workout doesn't exist
             GarminServiceError: If API request fails
         """
-        headers = self._get_headers()
-        url = f"https://connectapi.garmin.com/workout-service/workout/{workout_id}"
-        response = self.client.garth.sess.get(url, headers=headers)
-
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 404:
-            raise WorkoutNotFoundError(f"Workout not found: {workout_id}")
-        else:
-            raise GarminServiceError(f"Error fetching workout: {response.status_code} - {response.text}")
+        try:
+            return self.client.connectapi(f"/workout-service/workout/{workout_id}")
+        except GarminConnectConnectionError as e:
+            if "404" in str(e):
+                raise WorkoutNotFoundError(f"Workout not found: {workout_id}") from e
+            raise GarminServiceError(f"Error fetching workout: {e}") from e
 
     def get_workout_details(self, workout_id: int) -> dict[str, Any]:
         """
@@ -160,14 +149,10 @@ class GarminService:
         if "sportType" not in workout_data:
             raise WorkoutValidationError("Workout must contain 'sportType' field")
 
-        headers = self._get_headers()
-        url = "https://connectapi.garmin.com/workout-service/workout"
-        response = self.client.garth.sess.post(url, json=workout_data, headers=headers)
-
-        if response.status_code != 200:
-            raise GarminServiceError(f"Error uploading workout: {response.status_code} - {response.text}")
-
-        return response.json()
+        try:
+            return self.client.client.post("", "/workout-service/workout", json=workout_data, api=True)
+        except GarminConnectConnectionError as e:
+            raise GarminServiceError(f"Error uploading workout: {e}") from e
 
     def upload_workout_from_file(self, file_path: Path) -> dict:
         """
@@ -206,17 +191,13 @@ class GarminService:
             WorkoutNotFoundError: If workout doesn't exist
             GarminServiceError: If deletion fails
         """
-        headers = self._get_headers()
-        del headers["Content-Type"]  # DELETE doesn't need Content-Type
-        url = f"https://connectapi.garmin.com/workout-service/workout/{workout_id}"
-        response = self.client.garth.sess.delete(url, headers=headers)
-
-        if response.status_code == 204:
+        try:
+            self.client.client.delete("", f"/workout-service/workout/{workout_id}")
             return True
-        elif response.status_code == 404:
-            raise WorkoutNotFoundError(f"Workout not found: {workout_id}")
-        else:
-            raise GarminServiceError(f"Error deleting workout: {response.status_code} - {response.text}")
+        except GarminConnectConnectionError as e:
+            if "404" in str(e):
+                raise WorkoutNotFoundError(f"Workout not found: {workout_id}") from e
+            raise GarminServiceError(f"Error deleting workout: {e}") from e
 
     def schedule_workout(self, workout_id: int, date: str) -> bool:
         """
@@ -233,16 +214,13 @@ class GarminService:
             WorkoutNotFoundError: If workout doesn't exist
             GarminServiceError: If scheduling fails
         """
-        headers = self._get_headers()
-        url = f"https://connectapi.garmin.com/workout-service/schedule/{workout_id}"
-        response = self.client.garth.sess.post(url, json={"date": date}, headers=headers)
-
-        if response.status_code == 200:
+        try:
+            self.client.client.post("", f"/workout-service/schedule/{workout_id}", json={"date": date})
             return True
-        elif response.status_code == 404:
-            raise WorkoutNotFoundError(f"Workout not found: {workout_id}")
-        else:
-            raise GarminServiceError(f"Error scheduling workout: {response.status_code} - {response.text}")
+        except GarminConnectConnectionError as e:
+            if "404" in str(e):
+                raise WorkoutNotFoundError(f"Workout not found: {workout_id}") from e
+            raise GarminServiceError(f"Error scheduling workout: {e}") from e
 
     # --- Daily Status Operations ---
 

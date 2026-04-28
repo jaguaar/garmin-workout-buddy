@@ -56,8 +56,8 @@ def get_client(
     token_path = str(token_dir)
 
     # Try to resume from saved session
-    oauth1_token_file = token_dir / "oauth1_token.json"
-    if oauth1_token_file.exists():
+    token_file = token_dir / "garmin_tokens.json"
+    if token_file.exists():
         try:
             client = Garmin()
             client.login(token_path)
@@ -72,8 +72,7 @@ def get_client(
     if email and password:
         try:
             client = Garmin(email, password, prompt_mfa=prompt_mfa)
-            client.login()
-            client.garth.dump(token_path)
+            client.login(token_path)
             return client
         except Exception as e:
             raise AuthenticationError(f"Authentication with environment credentials failed: {e}")
@@ -93,8 +92,7 @@ def get_client(
 
         try:
             client = Garmin(email, password, prompt_mfa=prompt_mfa)
-            client.login()
-            client.garth.dump(token_path)
+            client.login(token_path)
             return client
         except Exception as e:
             raise AuthenticationError(f"Authentication failed: {e}")
