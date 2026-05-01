@@ -202,6 +202,29 @@ def get_activity(activity_id: int) -> str:
 
 
 @mcp.tool()
+def get_splits(activity_id: int) -> str:
+    """
+    Get per-km split data for a running activity.
+
+    Returns distance, time, pace, heart rate, and elevation for each km split.
+
+    Args:
+        activity_id: The Garmin activity ID
+
+    Returns:
+        JSON array of split objects, one per km
+    """
+    try:
+        service = get_service()
+        splits = service.get_running_splits(activity_id)
+        return json.dumps(splits, indent=2)
+    except ActivityNotFoundError as e:
+        return json.dumps({"error": str(e)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
 def get_status(date: Optional[str] = None) -> str:
     """
     Get training readiness and fatigue status for a date.

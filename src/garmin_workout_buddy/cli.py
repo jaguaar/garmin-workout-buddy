@@ -143,6 +143,30 @@ def cmd_activity(service: GarminService, args: argparse.Namespace) -> None:
             print(json.dumps(activity, indent=2))
             return
 
+        if args.splits:
+            splits = service.get_running_splits(args.activity_id)
+            print(f"\nRunning Splits ({len(splits)} km)")
+            print("=" * 40)
+            for split in splits:
+                line = f"  {split['split']:>2}. {split.get('distance', ''):>6}  {split.get('time', ''):>8}  {split.get('pace', 'N/A'):>9}"
+                hr = split.get("heartRate", {})
+                if hr.get("average"):
+                    line += f"  HR {hr['average']}"
+                    if hr.get("max") and hr["max"] != hr["average"]:
+                        line += f"/{hr['max']}"
+                    line += " bpm"
+                elev = split.get("elevation", {})
+                elev_parts = []
+                if elev.get("gain"):
+                    elev_parts.append(f"+{elev['gain']}m")
+                if elev.get("loss"):
+                    elev_parts.append(f"-{elev['loss']}m")
+                if elev_parts:
+                    line += f"  {' '.join(elev_parts)}"
+                print(line)
+            print()
+            return
+
         details = service.get_activity_details(args.activity_id)
 
         # Header
@@ -422,6 +446,11 @@ Examples:
         "--json",
         action="store_true",
         help="Output raw JSON response",
+    )
+    activity_parser.add_argument(
+        "--splits",
+        action="store_true",
+        help="Show per-km running splits",
     )
 
     args = parser.parse_args()

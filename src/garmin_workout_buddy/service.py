@@ -13,6 +13,7 @@ from garminconnect import Garmin
 from garminconnect.exceptions import GarminConnectConnectionError
 
 from .formatters import (
+    format_activity_pace,
     format_activity_summary,
     format_distance,
     format_duration,
@@ -481,8 +482,6 @@ class GarminService:
             if is_swimming:
                 result["pace"] = format_swim_pace(duration_secs, distance_m)
             elif duration_secs:
-                from .formatters import format_activity_pace
-
                 result["pace"] = format_activity_pace(duration_secs, distance_m)
 
         if summary.get("calories"):
@@ -577,6 +576,62 @@ class GarminService:
             training["load"] = int(summary["activityTrainingLoad"])
         if training:
             result["trainingEffect"] = training
+
+        return result
+
+    def get_running_splits(self, activity_id: int) -> list[dict]:
+        """
+        Fetch and format per-km split data for a running activity.
+
+        Args:
+            activity_id: The ID of the activity
+
+        Returns:
+            List of split dicts with distance, time, pace, HR, and elevation
+
+        Raises:
+            ActivityNotFoundError: If activity doesn't exist
+            GarminServiceError: If splits are unavailable
+        """
+        splits_data = self.get_activity_splits(activity_id)
+        if not splits_data:
+            raise GarminServiceError("No split data available for this activity")
+
+        laps = splits_data.get("lapDTOs", [])
+        if not laps:
+            raise GarminServiceError("No lap data found in splits")
+
+        result = []
+        for i, lap in enumerate(laps, 1):
+            dist = lap.get("distance", 0)
+            dur = lap.get("duration", 0)
+
+            split: dict[str, Any] = {"split": i}
+
+            if dist:
+                split["distance"] = format_distance(dist)
+            if dur:
+                split["time"] = format_duration(dur)
+            if dur and dist:
+                split["pace"] = format_activity_pace(dur, dist)
+
+            hr: dict[str, int] = {}
+            if lap.get("averageHR"):
+                hr["average"] = int(lap["averageHR"])
+            if lap.get("maxHR"):
+                hr["max"] = int(lap["maxHR"])
+            if hr:
+                split["heartRate"] = hr
+
+            elev: dict[str, int] = {}
+            if lap.get("elevationGain"):
+                elev["gain"] = int(lap["elevationGain"])
+            if lap.get("elevationLoss"):
+                elev["loss"] = int(lap["elevationLoss"])
+            if elev:
+                split["elevation"] = elev
+
+            result.append(split)
 
         return result
 
